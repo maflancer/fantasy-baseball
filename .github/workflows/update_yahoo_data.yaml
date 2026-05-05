@@ -1,0 +1,59 @@
+name: Update Fantasy Baseball Data
+
+on:
+  schedule:
+    # Run every Monday at 10 AM UTC
+    - cron: "0 10 * * 1"
+  workflow_dispatch: # Allows manual triggering
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          pip install yahoo-oauth yahoo-fantasy-api pandas
+
+      - name: Create OAuth config file
+        run: |
+          echo '${{ secrets.YAHOO_OAUTH_FULL }}' > oauth2.json
+
+      - name: Run script to get weekly stats
+        run: |
+          python scripts/get_weekly_stats.py
+
+      - name: Run script to get weekly leaders
+        run: |
+          python scripts/get_stat_leaders.py
+
+      - name: Run script to get standings
+        run: |
+          python scripts/get_standings.py
+
+      - name: Clean up OAuth file
+        run: |
+          rm -f oauth2.json
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          git add public/data/*.csv
+          if ! git diff --staged --quiet; then
+            git commit -m "Upload New Data"
+            git push
+          else
+            echo "No changes to commit"
+          fi
